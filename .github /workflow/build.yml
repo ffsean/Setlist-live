@@ -1,1 +1,42 @@
+name: Build APK
 
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 把根目錄的平放檔案，整理成 Android 專案需要的資料夾結構
+      - name: Arrange project files
+        run: |
+          mkdir -p app/src/main/java/com/example/setlist
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+          mkdir -p app/src/main/assets/www
+          cp app-build.gradle.kts app/build.gradle.kts
+          cp AndroidManifest.xml app/src/main/AndroidManifest.xml
+          cp MainActivity.kt app/src/main/java/com/example/setlist/MainActivity.kt
+          cp dvr.js yt-shim.js yt-mobile-combo.user.js app/src/main/assets/
+          cp index.html tagger.html xlsx.mini.min.js manifest.json sw.js icon-192.png icon-512.png icon-maskable-512.png apple-touch-icon.png app/src/main/assets/www/
+          cp ic_launcher.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: setlist-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
