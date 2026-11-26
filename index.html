@@ -1,0 +1,429 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>歌曲庫</title>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#0f0f0f">
+<link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{--bg:#0f0f0f;--c:#1c1c1e;--t:#f2f2f2;--m:#9a9a9f;--a:#ff3b30;--b:#2c2c2e}
+@media(prefers-color-scheme:light){:root{--bg:#f4f4f6;--c:#fff;--t:#111;--m:#666;--b:#ddd}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:15px system-ui,sans-serif;padding-bottom:64px}
+header{padding:10px 12px;position:sticky;top:0;background:var(--bg);z-index:2}
+input,select,textarea,button{font:inherit;color:var(--t);background:var(--c);border:1px solid var(--b);border-radius:8px;padding:8px}
+input,select,textarea{width:100%;margin:3px 0}button{cursor:pointer}button.p{background:var(--a);border-color:var(--a);color:#fff}
+.row{display:flex;gap:6px;align-items:center}.row>*{flex:1}.row>button{flex:none}
+.card{background:var(--c);border-radius:10px;padding:10px;margin:8px 12px;display:flex;gap:8px;align-items:center}
+.card .i{flex:1;min-width:0}.card b{display:block;overflow:hidden;text-overflow:ellipsis}.m{color:var(--m);font-size:12px}
+.tag{font-size:11px;background:var(--b);border-radius:6px;padding:1px 6px;margin-left:4px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--c);border-top:1px solid var(--b);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 0}nav .on{color:var(--a);font-weight:700}
+section{display:none;padding:0 12px}section.on{display:block}.box{padding:12px 0}
+dialog{width:92%;max-width:420px;background:var(--bg);color:var(--t);border:1px solid var(--b);border-radius:12px}
+.ic{padding:6px 7px}input[type=checkbox]{width:auto;margin:0 3px}#cols label{margin-right:8px;white-space:nowrap}details select{margin:3px 0}
+</style></head><body>
+<header><div class="row"><input id="q" placeholder="搜尋歌名、歌手、作品、備註"></div>
+<div class="row"><select id="cat"></select><button id="fv">☆ 收藏</button></div>
+<details><summary class="m" style="padding:6px 0">排序與篩選</summary>
+<div class="m" id="cols">搜尋欄位：<label><input type="checkbox" value="song" checked>歌名</label><label><input type="checkbox" value="artist" checked>歌手</label><label><input type="checkbox" value="work" checked>作品</label><label><input type="checkbox" value="year">年份</label><label><input type="checkbox" value="remarks" checked>備註</label></div>
+<div class="row"><select id="sk"><option value="new">最近加入</option><option value="orig">原始順序</option><option value="song">歌名</option><option value="artist">歌手</option><option value="work">關聯作品</option><option value="year">年份</option></select>
+<select id="sd"><option value="asc">小→大 / A→Z</option><option value="desc">大→小 / Z→A</option></select></div>
+<select id="ff"><option value="all">全部</option><option value="noyear">只看年份為空</option><option value="hasyear">只看有年份</option><option value="dup">只看可能重複（同歌名）</option><option value="dupx">只看完全重複（同歌名＋同歌手）</option><option value="nowork">只看關聯作品為空</option></select></details></header>
+<section id="s4" style="padding:0"><iframe id="tg" allow="fullscreen;autoplay;encrypted-media" style="width:100%;border:0;height:calc(100dvh - 64px - env(safe-area-inset-bottom,0px))"></iframe></section>
+<section id="s0" style="padding:0"><div id="lib"></div><div id="pg" class="row" style="margin:12px;justify-content:center"></div></section>
+<section id="s1"><div class="box row"><button class="p" id="np">＋ 新歌單</button></div><div id="pls"></div></section>
+<section id="s2"><div class="box"><input id="jq" placeholder="歌名 歌手（直接搜尋）">
+<div class="row"><button class="p" data-j="youtube">YouTube</button><button data-j="google">Google</button><button data-j="spotify">Spotify</button></div></div></section>
+<section id="s3"><div class="box">
+<button class="p" id="add" style="width:100%">＋ 新增歌曲</button><br><br>
+<b>快速新增</b><div class="m">只輸入歌名，一行一首（不用時間和歌手）</div>
+<textarea id="qa" rows="3" placeholder="歌名，一行一首"></textarea>
+<div class="row"><select id="qc"></select><button class="p" id="qab">加入</button></div><br>
+<b>匯入</b><div class="m">XLSX / CSV 檔，或貼上公開的 Google 試算表網址</div>
+<select id="mode"><option value="merge">合併匯入（預設）</option><option value="over">覆蓋匯入</option></select>
+<div class="row"><input id="gs" placeholder="Google 試算表網址"><button id="gsb">讀取</button></div>
+<input type="file" id="file" accept=".xlsx,.xls,.csv"><br><br>
+<label id="exw" style="display:none"><input type="checkbox" id="exc"> 點歌曲時用手機的 YouTube App 開啟</label>
+<div class="m" id="exn" style="display:none">只影響曲庫裡點歌曲的跳轉，打軸頁一律在本 App 內播放並套用 DVR。關閉則曲庫點歌也在本 App 內開啟。</div><br>
+<label id="bgw" style="display:none"><input type="checkbox" id="bgc"> 背景播放改善（實驗）</label>
+<div class="m" id="bgn" style="display:none">切到其他 App 或關螢幕時嘗試續播，修改後需重開 App 才生效。若播放異常請關閉。</div><br>
+<b>補資料來源</b><div class="m" id="lksrc"></div><br>
+<b>備份</b><div class="row"><button id="ex">匯出 JSON</button><button id="im">還原 JSON</button></div>
+<input type="file" id="jf" accept=".json" hidden><br>
+<button id="clr" style="width:100%;color:var(--a)">清空全部資料</button><br><br>
+<a href="tagger.html" style="color:var(--a)">→ 打軸工具</a></div></section>
+<nav><button data-t="4">打軸</button><button data-t="0">曲庫</button><button data-t="1">歌單</button><button data-t="2">找歌</button><button data-t="3">管理</button><button id="live" style="display:none;color:var(--a)">直播</button></nav>
+<dialog id="lk" style="max-height:88dvh;overflow:auto"><div>
+<div class="row"><b>🔍 補資料</b><button data-lkx class="ic" style="flex:none">✕</button></div>
+<div class="m" id="lksw"></div><input id="lkq1" placeholder="歌名"><input id="lkq2" placeholder="歌手">
+<div class="row"><button class="p" data-lkq>查詢</button><button data-lke>擴展查詢</button></div>
+<div id="lks"></div><div id="lkl"></div><div id="lkp"></div>
+<div class="m" style="margin-top:8px">關聯作品只有 Bangumi 能補，命中率低；iTunes 年份常是重發年。各來源結果不互相合併，由你決定。</div></div></dialog>
+<dialog id="dg"><form method="dialog" id="fm"></form></dialog>
+<script src="xlsx.mini.min.js"></script>
+<script>
+const CATS=["J-POP","アニメ・声優","ボカロ","VTuberオリ曲","其他"],$=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+let songs=[],lists=[],db,fav=false,openList=null,byId=new Map(),meta=new Map(),page=0,view=[];const PS=50,col=new Intl.Collator("ja");
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const open_=(r,m="readonly")=>db.transaction(r,m);
+const req=r=>new Promise((o,e)=>{r.onsuccess=()=>o(r.result);r.onerror=()=>e(r.error)});
+const all=s=>req(open_(s).objectStore(s).getAll());
+const put=(s,v)=>req(open_(s,"readwrite").objectStore(s).put(v));
+const del=(s,k)=>req(open_(s,"readwrite").objectStore(s).delete(k));
+const clear=s=>req(open_(s,"readwrite").objectStore(s).clear());
+async function init(){
+ db=await new Promise((o,e)=>{const r=indexedDB.open("SetlistMusicDB",1);
+  r.onupgradeneeded=()=>{const d=r.result,s=d.createObjectStore("songs",{keyPath:"id",autoIncrement:true});
+   ["song","artist","category","is_favorite"].forEach(k=>s.createIndex("by_"+k,k));
+   d.createObjectStore("playlists",{keyPath:"id",autoIncrement:true})};
+  r.onsuccess=()=>o(r.result);r.onerror=()=>e(r.error)});
+ $("#qc").innerHTML=CATS.map(c=>`<option>${c}</option>`).join("");await reload();$("#cat").innerHTML='<option value="">全部分類</option>'+CATS.map(c=>`<option>${c}</option>`).join("");
+ const t=location.hash.slice(1);tab(t===""?4:+t);
+}
+const lc=s=>String(s||"").normalize("NFKC").toLowerCase();
+function nk(s){s=lc(s);const s2=s.replace(/[\(\[（【「『<].*?[\)\]）】」』>]/g,"");if(s2.replace(/[^\p{L}\p{N}]/gu,""))s=s2;return s.replace(/[^\p{L}\p{N}]/gu,"")}
+function build(){byId=new Map();meta=new Map();const c={},cx={};
+ for(const s of songs){byId.set(s.id,s);const k=nk(s.song),a=nk(s.artist),y=parseFloat(s.year);
+  meta.set(s.id,{k,a,y:y>0?Math.round(y):null,song:lc(s.song),artist:lc(s.artist),work:lc(s.work),remarks:lc(s.remarks),year:String(s.year||""),w:!!String(s.work||"").trim()});
+  if(k){c[k]=(c[k]||0)+1;const x=k+"|"+a;cx[x]=(cx[x]||0)+1}}
+ for(const m of meta.values()){m.dup=m.k?c[m.k]:1;m.dupx=m.k?cx[m.k+"|"+m.a]:1}}
+async function reload(){songs=await all("songs");lists=await all("playlists");build();render()}
+function bulkPut(st,arr){return new Promise((ok,no)=>{const t=db.transaction(st,"readwrite"),s=t.objectStore(st);arr.forEach(v=>s.put(v));t.oncomplete=ok;t.onerror=t.onabort=()=>no(t.error)})}
+const ytId=u=>(String(u||"").match(/(?:v=|youtu\.be\/|shorts\/|live\/)([\w-]{11})/)||[])[1]||"";
+const norm=s=>String(s||"").normalize("NFKC").toLowerCase().replace(/[\s・･·\-_'"!?！？。、,.()（）\[\]【】]/g,"");
+function url(s,p="youtube"){
+ if(s.url&&s.url.trim())return s.url.trim();
+ const q=encodeURIComponent([s.song,s.artist].filter(Boolean).join(" "));
+ return {youtube:"https://www.youtube.com/results?search_query=",google:"https://www.google.com/search?q=",spotify:"https://open.spotify.com/search/"}[p]+q}
+const extOn=()=>{try{return localStorage.getItem("ext")!=="0"}catch(e){return true}};
+const go=u=>{if(window.AndroidBridge&&typeof AndroidBridge.openExternal==="function"&&extOn())AndroidBridge.openExternal(u);else location.href=u};
+function card(s,extra=""){
+ return `<div class="card"><div class="i" data-go="${s.id}"><b>${esc(s.song)}</b><span class="m">${esc([s.artist,s.work,s.year].filter(Boolean).join(" · "))}</span><span class="tag">${esc(s.category)}</span></div>${extra}
+ <button class="ic" data-fav="${s.id}">${s.is_favorite?"★":"☆"}</button>
+ <button class="ic" data-g="${s.id}">G</button><button class="ic" data-pl="${s.id}">＋</button><button class="ic" data-ed="${s.id}">✎</button>${extra?"":`<button class="ic" data-del="${s.id}">🗑</button>`}</div>`}
+function render(){
+ if(!db)return;
+ const q=lc($("#q").value.trim()),f=$$("#cols input:checked").map(x=>x.value),c=$("#cat").value,fm=$("#ff").value,sk=$("#sk").value,dir=$("#sd").value==="desc"?-1:1;
+ let l=songs.filter(s=>{const m=meta.get(s.id);
+  if(c&&s.category!==c)return false;if(fav&&!s.is_favorite)return false;
+  if(q&&!f.map(k=>m[k]).join(" ").includes(q))return false;
+  if(fm==="noyear")return m.y===null;if(fm==="hasyear")return m.y!==null;
+  if(fm==="dup")return m.dup>1;if(fm==="dupx")return m.dupx>1;if(fm==="nowork")return !m.w;return true});
+ const M=s=>meta.get(s.id);
+ if((fm==="dup"||fm==="dupx")&&(sk==="orig"||sk==="new"))l.sort((a,b)=>col.compare(M(a).k,M(b).k)||col.compare(M(a).a,M(b).a)||a.id-b.id);
+ else if(sk==="new")l.sort((a,b)=>b.id-a.id);else if(sk==="orig")l.sort((a,b)=>a.id-b.id);
+ else if(sk==="year")l.sort((a,b)=>{const x=M(a).y,y=M(b).y;if(x===null&&y!==null)return 1;if(y===null&&x!==null)return -1;return((x||0)-(y||0))*dir||a.id-b.id});
+ else l.sort((a,b)=>{const x=String(a[sk]||"").trim(),y=String(b[sk]||"").trim();if(!x&&y)return 1;if(!y&&x)return -1;return col.compare(x,y)*dir||a.id-b.id});
+ view=l;const tp=Math.max(1,Math.ceil(l.length/PS));page=Math.min(page,tp-1);
+ $("#lib").innerHTML=l.length?l.slice(page*PS,(page+1)*PS).map(s=>card(s)).join(""):`<div style="text-align:center;margin:16px"><p class="m">沒有符合的歌曲</p>${q?`<button class="p" data-qa="1">＋ 新增「${esc($("#q").value.trim())}」</button>`:""}</div>`;
+ $("#pg").innerHTML=`<button data-pg="-1"${page?"":" disabled"}>上一頁</button><span class="m" style="text-align:center">符合 ${l.length} 首 · 第 ${page+1} / ${tp} 頁</span><button data-pg="1"${page<tp-1?"":" disabled"}>下一頁</button>`;
+ renderPl()}
+function renderPl(){
+ if(openList){const p=lists.find(x=>x.id===openList);if(!p){openList=null;return renderPl()}
+  const ss=p.song_ids.map(i=>byId.get(i)).filter(Boolean);
+  $("#pls").innerHTML=`<div class="row"><button id="bk">←</button><b>${esc(p.name)}</b><button id="rn">改名</button><button id="dp">刪除</button></div>`+
+   (ss.map((s,i)=>card(s,`<button class="ic" data-up="${i}">↑</button><button class="ic" data-dn="${i}">↓</button><button class="ic" data-rm="${s.id}">✕</button>`)).join("")||'<p class="m">歌單是空的，從曲庫按 ＋ 加入</p>');return}
+ $("#pls").innerHTML=lists.map(p=>`<div class="card" data-op="${p.id}"><div class="i"><b>${esc(p.name)}</b><span class="m">${p.song_ids.length} 首</span></div></div>`).join("")||'<p class="m">還沒有歌單</p>'}
+function tab(n){$$("section").forEach(e=>e.classList.toggle("on",e.id==="s"+n));$$("nav button").forEach(e=>e.classList.toggle("on",+e.dataset.t===n));if(n===4&&!$("#tg").getAttribute("src"))$("#tg").src="tagger.html";
+ $("header").style.display=n<2?"block":"none";location.hash=n}
+function dlg(html){return new Promise(r=>{const d=$("#dg"),f=$("#fm");f.innerHTML=html;f.onsubmit=null;d.returnValue="";d.onclose=()=>{const v=d.returnValue;r(v==="ok"||v==="del"?Object.assign(new FormData(f),{v}):null)};d.showModal()})}
+async function edit(id){
+ const s=songs.find(x=>x.id===id)||{category:"J-POP"};
+ const f=await dlg(`<input name="song" placeholder="SONG（必填）" required value="${esc(s.song)}"><input name="artist" placeholder="ARTIST" value="${esc(s.artist)}">
+ <input name="work" placeholder="關聯作品" value="${esc(s.work)}"><input name="year" placeholder="年份" inputmode="numeric" value="${esc(s.year)}">
+ <select name="category">${CATS.map(c=>`<option${c===s.category?" selected":""}>${c}</option>`).join("")}</select>
+ <input name="remarks" placeholder="備註" value="${esc(s.remarks)}"><input name="url" placeholder="直接連結（選填）" value="${esc(s.url)}">
+ <input type="hidden" name="_t" value="${Date.now()}"><input type="hidden" name="ytype" value="${esc(s.year_type)}">
+ <button type="button" id="lkb" class="p" style="width:100%;margin:6px 0">🔍 補資料</button>
+ <details><summary class="m">更多欄位</summary>
+ <input name="album" placeholder="專輯" value="${esc(s.album)}"><input name="aliases" placeholder="別名（逗號分隔）" value="${esc((s.aliases||[]).join(", "))}">
+ <input name="dur" placeholder="時長 mm:ss" value="${esc(fmtDur(s.duration_ms))}"><input name="stype" placeholder="原曲／翻唱" value="${esc(s.song_type)}">
+ <input name="extids" placeholder="外部 ID（JSON）" value="${esc(s.external_ids?JSON.stringify(s.external_ids):"")}"></details>
+ <div class="row"><button value="cancel" formnovalidate>取消</button>${id?'<button value="del" formnovalidate style="color:var(--a)">刪除</button>':""}<button class="p" value="ok">儲存</button></div>`);
+ if(!f)return;
+ if(f.v==="del"){if(id&&confirm("刪除這首歌？"))await removeSong(id);return}
+ const now=Date.now(),o={...s,song:f.get("song").trim(),artist:f.get("artist").trim(),work:f.get("work").trim(),year:f.get("year").trim(),
+  category:f.get("category"),remarks:f.get("remarks").trim(),url:f.get("url").trim(),is_favorite:!!s.is_favorite,updated_at:now,created_at:s.created_at||now,
+  album:f.get("album").trim(),aliases:f.get("aliases").split(/[,，、]/).map(x=>x.trim()).filter(Boolean),duration_ms:parseDur(f.get("dur")),
+  song_type:f.get("stype").trim(),external_ids:safeJson(f.get("extids")),year_type:f.get("ytype")};
+ o.youtube_id=ytId(o.url);
+ let r=await saveSong(o,s.updated_at);
+ if(r==="conflict"){if(!confirm("這首歌在你編輯期間已被修改。\n確定＝強制覆蓋；取消＝放棄這次儲存並重新載入。")){await reload();return}
+  r=await saveSong(o,s.updated_at,true)}
+ songs=byId.has(o.id)?songs.map(x=>x.id===o.id?o:x):[...songs,o];build();render()}
+const fmtDur=ms=>{if(!ms)return"";const s=Math.round(ms/1000);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
+const parseDur=t=>{const m=String(t||"").trim().match(/^(\d+):(\d{1,2})$/);return m?(+m[1]*60+ +m[2])*1000:null};
+const safeJson=t=>{try{const v=JSON.parse(t);return v&&typeof v==="object"?v:null}catch(e){return null}};
+function saveSong(o,base,force){return new Promise((ok,no)=>{
+ const t=db.transaction("songs","readwrite"),st=t.objectStore("songs");
+ const w=()=>{const r=st.put(o);r.onsuccess=()=>{o.id=o.id??r.result}};
+ if(o.id!=null&&!force&&base!=null){const g=st.get(o.id);g.onsuccess=()=>{const c=g.result;if(c&&c.updated_at!==base){t.abort();ok("conflict")}else w()}}else w();
+ t.oncomplete=()=>ok("ok");t.onerror=()=>no(t.error)})}
+async function quickAdd(names,cat="J-POP"){
+ const now=Date.now(),seen=new Set(songs.map(s=>nk(s.song)+"|"+nk(s.artist))),add=[];
+ for(let n of names){n=n.trim();if(!n)continue;const k=nk(n)+"|";if(seen.has(k))continue;seen.add(k);
+  add.push({song:n,artist:"",work:"",year:"",category:cat,remarks:"",url:"",youtube_id:"",is_favorite:false,created_at:now,updated_at:now})}
+ if(add.length)await bulkPut("songs",add);await reload();return add.length}
+async function removeSong(id){await del("songs",id);await purge(id);songs=songs.filter(x=>x.id!==id);build();render()}
+async function purge(id){for(const p of lists){if(p.song_ids.includes(id)){p.song_ids=p.song_ids.filter(x=>x!==id);await put("playlists",p)}}}
+async function pick(title,opts){
+ const f=await dlg(`<b>${esc(title)}</b>${opts.map(o=>`<button class="p" style="width:100%;margin:4px 0" name="v" value="${o.id}" onclick="this.form.dataset.v=this.value">${esc(o.name)}</button>`).join("")}<button value="cancel" style="width:100%">取消</button>`);
+ return null}
+async function chooseList(sid){
+ if(!lists.length)return alert("請先到「歌單」建立歌單");
+ const d=$("#dg"),f=$("#fm");f.innerHTML=`<b>加入歌單</b>`+lists.map(p=>`<button type="button" class="p" style="width:100%;margin:4px 0" data-pid="${p.id}">${esc(p.name)}</button>`).join("")+`<button value="cancel" style="width:100%">取消</button>`;
+ f.onclick=async e=>{const id=+e.target.dataset.pid;if(!id)return;const p=lists.find(x=>x.id===id);
+  if(!p.song_ids.includes(sid)){p.song_ids.push(sid);await put("playlists",p);await reload()}d.close()};
+ d.onclose=()=>{f.onclick=null};d.showModal()}
+async function plName(old=""){const f=await dlg(`<input name="n" required placeholder="歌單名稱" value="${esc(old)}"><div class="row"><button value="cancel" formnovalidate>取消</button><button class="p" value="ok">確定</button></div>`);return f&&f.get("n").trim()}
+async function move(i,d){const p=lists.find(x=>x.id===openList),j=i+d;if(j<0||j>=p.song_ids.length)return;[p.song_ids[i],p.song_ids[j]]=[p.song_ids[j],p.song_ids[i]];await put("playlists",p);await reload()}
+document.addEventListener("click",async e=>{
+ const t=e.target,g=k=>t.closest(`[data-${k}]`)?.dataset[k];
+ if(t.closest("#live"))return AndroidBridge.openLive("");if(t.closest("nav button"))return tab(+t.dataset.t);
+ let v;
+ if((v=g("go"))){const s=byId.get(+v);return go(url(s))}
+ if((v=g("g"))){return go(url(byId.get(+v),"google"))}
+ if((v=g("fav"))){const s=byId.get(+v);s.is_favorite=!s.is_favorite;await put("songs",s);return render()}
+ if((v=g("del"))){const s=byId.get(+v);if(s&&confirm(`刪除「${s.song}」？`))await removeSong(s.id);return}
+ if((v=g("pg"))){page+=+v;render();return scrollTo(0,0)}
+ if((v=g("ed")))return edit(+v);if((v=g("pl")))return chooseList(+v);
+ if((v=g("op"))){openList=+v;return renderPl()}
+ if((v=g("up")))return move(+v,-1);if((v=g("dn")))return move(+v,1);
+ if((v=g("rm"))){const p=lists.find(x=>x.id===openList);p.song_ids=p.song_ids.filter(x=>x!=v);await put("playlists",p);return reload()}
+ if(t.id==="bk"){openList=null;return renderPl()}
+ if(t.id==="rn"){const p=lists.find(x=>x.id===openList),n=await plName(p.name);if(n){p.name=n;await put("playlists",p);reload()}return}
+ if(t.id==="dp"){if(confirm("刪除這個歌單？（歌曲不會被刪除）")){await del("playlists",openList);openList=null;reload()}return}
+ if(t.id==="np"){const n=await plName();if(n){await put("playlists",{name:n,description:"",song_ids:[],created_at:Date.now()});reload()}return}
+ if(t.id==="fv"){fav=!fav;t.textContent=(fav?"★":"☆")+" 收藏";page=0;return render()}
+ if(t.id==="add")return edit(0);
+ if(t.dataset.qa){const n=$("#q").value.trim();if(n){await quickAdd([n]);$("#q").value="";page=0;render()}return}
+ if(t.id==="qab"){const n=await quickAdd($("#qa").value.split("\n"),$("#qc").value);$("#qa").value="";alert(`已新增 ${n} 首`);return}
+ if(t.dataset.j){const q=$("#jq").value.trim();if(q)go(url({song:q},t.dataset.j));return}
+ if(t.id==="ex")return download("setlist-backup.json",JSON.stringify({version:1,exported_at:Date.now(),songs,playlists:lists}));
+ if(t.id==="im")return $("#jf").click();
+ if(t.id==="gsb")return gsheet();
+ if(t.id==="clr"){if(confirm("將刪除所有歌曲與歌單，且無法復原。確定要清空？\n（建議先匯出 JSON 備份）")&&confirm("再次確認：真的要清空嗎？")){await clear("songs");await clear("playlists");reload()}}
+});
+let tm;const rs=()=>{page=0;render()};
+$("#q").oninput=()=>{clearTimeout(tm);tm=setTimeout(rs,250)};
+$("#cat").onchange=$("#sk").onchange=$("#sd").onchange=$("#ff").onchange=$("#cols").onchange=rs;
+$("#jq").onkeydown=e=>{if(e.key==="Enter")$('[data-j="youtube"]').click()};
+function download(name,text){
+ if(window.AndroidBridge)return AndroidBridge.save(name,text);
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"application/json"}));a.download=name;a.click()}
+$("#jf").onchange=async e=>{
+ const f=e.target.files[0];e.target.value="";if(!f)return;
+ try{const d=JSON.parse(await f.text());if(!Array.isArray(d.songs))throw 0;
+  if(!confirm(`還原會取代現有資料（${d.songs.length} 首歌、${(d.playlists||[]).length} 個歌單）。確定？`))return;
+  await clear("songs");await clear("playlists");
+  await bulkPut("songs",d.songs);await bulkPut("playlists",d.playlists||[]);
+  await reload();alert("還原完成")}catch{alert("不是有效的備份檔")}};
+// ---- 匯入 ----
+const HD={song:["song","歌名","歌曲","曲名","歌曲名稱"],artist:["artist","歌手","演唱者","原唱"],work:["關聯作品","关联作品","作品","tie-in","tiein"],
+ year:["年份","年","year"],category:["分類","分类","類型","category"],remarks:["備註","备注","標籤","notes","note"],url:["url","網址","连结","連結","網址連結","link"]};
+function mapCat(c){const s=String(c||"").normalize("NFKC").toLowerCase();if(!s)return"其他";
+ const x=CATS.find(k=>k.toLowerCase()===s);if(x)return x;
+ if(/vtuber|オリ/.test(s))return"VTuberオリ曲";if(/ボカロ|vocaloid|v家|初音/.test(s))return"ボカロ";
+ if(/アニメ|anime|動畫|动画|声優|聲優/.test(s))return"アニメ・声優";if(/pop/.test(s))return"J-POP";return"其他"}
+function rowsToSongs(rows){
+ if(!rows.length)return[];const h=rows[0].map(x=>String(x||"").trim().toLowerCase()),ix={};
+ for(const k in HD){ix[k]=h.findIndex(x=>HD[k].some(a=>x===a.toLowerCase()))}
+ if(ix.song<0)throw new Error("找不到「SONG／歌名」欄位");
+ const now=Date.now();
+ return rows.slice(1).map(r=>{const g=k=>ix[k]>=0?String(r[ix[k]]??"").trim():"";
+  return{song:g("song"),artist:g("artist"),work:g("work"),year:g("year"),category:mapCat(g("category")),remarks:g("remarks"),url:g("url"),youtube_id:ytId(g("url")),is_favorite:false,created_at:now,updated_at:now}})}
+async function doImport(list){
+ const miss=list.filter(s=>!s.song).length;list=list.filter(s=>s.song);
+ const over=$("#mode").value==="over",base=over?[]:songs,seen=new Set(),sus=[];
+ const key=s=>norm(s.song)+"|"+norm(s.artist);
+ base.forEach(s=>seen.add(key(s)));const ids=new Set(base.map(s=>s.youtube_id).filter(Boolean));
+ const add=[];let dup=0;
+ for(const s of list){
+  if((s.youtube_id&&ids.has(s.youtube_id))||(s.artist&&seen.has(key(s)))){dup++;continue}
+  if(!s.artist&&seen.has(key(s))){sus.push(s);continue}
+  seen.add(key(s));if(s.youtube_id)ids.add(s.youtube_id);add.push(s)}
+ let msg=`共 ${list.length} 筆：新增 ${add.length}、重複略過 ${dup}、疑似重複（只有歌名相同）${sus.length}、缺歌名略過 ${miss}\n例如：${add.slice(0,3).map(s=>s.song).join("、")}`;
+ if(over)msg="【覆蓋匯入】將先清空現有資料，請確認已備份。\n"+msg;
+ if(!confirm(msg+"\n\n確定匯入？"))return;
+ let extra=sus.length&&confirm(`疑似重複 ${sus.length} 筆，要一併匯入嗎？`)?sus:[];
+ if(over){await clear("songs");await clear("playlists")}
+ const b=$("#gsb"),o=b.textContent;b.textContent="匯入中…";
+ try{await bulkPut("songs",[...add,...extra]);await reload();alert("匯入完成："+(add.length+extra.length)+" 首")}
+ catch(e){alert("匯入失敗："+(e&&e.message||e))}finally{b.textContent=o}}
+$("#file").onchange=async e=>{
+ const f=e.target.files[0];e.target.value="";if(!f)return;
+ try{const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});
+  const n=wb.SheetNames.find(x=>x.includes("歌曲"))||wb.SheetNames[0];
+  await doImport(rowsToSongs(XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:false,defval:""})))}catch(err){alert("匯入失敗："+err.message)}};
+async function gsheet(){
+ const m=$("#gs").value.match(/\/d\/([\w-]+)/);if(!m)return alert("網址格式不對");
+ const gid=($("#gs").value.match(/gid=(\d+)/)||[])[1];
+ try{const r=await fetch(`https://docs.google.com/spreadsheets/d/${m[1]}/gviz/tq?tqx=out:csv${gid?"&gid="+gid:""}`);
+  if(!r.ok)throw new Error("無法讀取（試算表需設為「知道連結的人可檢視」）");
+  const wb=XLSX.read(await r.text(),{type:"string"});
+  await doImport(rowsToSongs(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:""})))}catch(err){alert("讀取失敗："+err.message)}}
+if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+if(window.AndroidBridge&&typeof AndroidBridge.openExternal==="function"){$("#exw").style.display="block";$("#exn").style.display="block";
+ $("#exc").checked=extOn();$("#exc").onchange=e=>{try{localStorage.setItem("ext",e.target.checked?"1":"0")}catch(x){}}}
+if(window.AndroidBridge&&typeof AndroidBridge.bgPlay==="function"){$("#bgw").style.display="block";$("#bgn").style.display="block";
+ $("#bgc").checked=AndroidBridge.bgPlay();$("#bgc").onchange=e=>AndroidBridge.setBgPlay(e.target.checked)}
+if(window.AndroidBridge&&typeof AndroidBridge.openLive==="function")$("#live").style.display="block";
+addEventListener("message",e=>{if(e.origin===location.origin&&e.data&&e.data.t==="songs-updated")reload()});
+init();
+</script><script>
+(()=>{
+const SRC=["bangumi","itunes","musicbrainz","vocadb"],NM={bangumi:"Bangumi",itunes:"iTunes",musicbrainz:"MusicBrainz",vocadb:"VocaDB"};
+const TTL={ok:30*864e5,empty:3*864e5,err:3e5},UNDO=5;
+const FN=["year","ytype","album","work","aliases","dur","stype","extids","artist","category"];
+const LB={year:"年份",album:"專輯",work:"關聯作品",aliases:"別名",dur:"時長",stype:"原曲／翻唱",extids:"外部 ID",artist:"歌手",category:"分類建議"};
+const gsrc=()=>{try{return JSON.parse(localStorage.getItem("lk_src"))||SRC}catch(e){return SRC}};
+const n1=s=>String(s||"").normalize("NFKC").toLowerCase().replace(/\s+/g," ").trim();
+const n2=s=>n1(s).replace(/[\(\[（]?\s*\b(feat|ft)\b\.?.*$/,"").replace(/\bcv[:：].*$/,"").replace(/[\s・･·\-_'"!?！？。、,.()（）\[\]【】「」『』]/g,"");
+const VER=/\b(remix|live|instrumental|cover|tv size|acoustic|ver|re-?record(ing)?|off vocal|karaoke|inst)\b|カラオケ/g;
+const vers=s=>(n1(s).match(VER)||[]).sort().join(",");
+const ago=ms=>{const m=Math.max(1,Math.round((Date.now()-ms)/6e4));return m<60?m+" 分鐘":m<1440?Math.round(m/60)+" 小時":Math.round(m/1440)+" 天"};
+const mins=ms=>Math.max(1,Math.ceil(ms/6e4));
+const yr=s=>parseInt(String(s||"").slice(0,4))||null;
+const safe=t=>{try{const v=JSON.parse(t);return v&&typeof v==="object"?v:{}}catch(e){return{}}};
+// ---- 來源 → 候選（不合併）----
+const MAP={
+ itunes:j=>(j.results||[]).map(r=>({title:r.trackName,artist:r.artistName,artists:[r.artistName],album:r.collectionName,year:yr(r.releaseDate),dateType:"iTunes release date",durationMs:r.trackTimeMillis||null,itemId:String(r.trackId),extIds:{itunes:String(r.trackId)}})),
+ musicbrainz:j=>(j.recordings||[]).map(r=>{const rl=(r.releases||[])[0]||{},ac=(r["artist-credit"]||[]).map(a=>a.name||(a.artist||{}).name).filter(Boolean);
+  return{title:r.title,artist:ac.join(" / "),artists:ac,album:rl.title||"",year:yr(r["first-release-date"]||rl.date),dateType:r["first-release-date"]?"first-release":"release date",durationMs:r.length||null,
+   itemId:r.id,extIds:{musicbrainz:{recordingId:r.id,releaseId:rl.id||null,releaseGroupId:(rl["release-group"]||{}).id||null}}}}),
+ vocadb:j=>(j.items||[]).map(r=>({title:r.name,artist:r.artistString||"",artists:(r.artists||[]).map(a=>(a.artist||{}).name||a.name).filter(Boolean),aliases:String(r.additionalNames||"").split(", ").filter(Boolean),
+  year:yr(r.publishDate),dateType:"VocaDB publish date",durationMs:r.lengthSeconds?r.lengthSeconds*1000:null,songType:r.songType,itemId:String(r.id),extIds:{vocadb:String(r.id)}})),
+ bangumi:j=>((j.search||{}).data||[]).map(r=>{const rel=(j.rel||{})[r.id]||[],a=rel.find(x=>x.type===2)||rel[0],ib=(r.infobox||[]).find(i=>/艺术家|艺人|表演者|歌手|演唱/.test(i.key||"")),
+  v=ib?(Array.isArray(ib.value)?ib.value.map(x=>x.v).join(" / "):ib.value):"";
+  return{title:r.name,artist:v||"",artists:v?[v]:[],aliases:[r.name_cn].filter(Boolean),year:null,dateText:r.date||"",dateType:"Bangumi 條目日期",work:a?(a.name_cn||a.name):"",itemId:String(r.id),extIds:{bangumi:String(r.id)}}})
+};
+const n0=s=>n1(s).replace(/\s/g,"");
+const grade=(a,c)=>{const raw=(c.artists&&c.artists.length?c.artists:[c.artist]).filter(Boolean),x=n2(a),ys=raw.map(n2).filter(Boolean);
+ if(!x||!ys.length)return"unknown";
+ if(raw.some(r=>n0(r)===n0(a)))return"none";                       // 原樣（僅全半形/大小寫/空白差異）相符
+ if(ys.includes(x)||ys.some(y=>y.includes(x)||x.includes(y)))return"low";   // 去 feat./CV./標點後相符或相近
+ return"high"};
+const mergeIds=(cur,add)=>{const o=JSON.parse(JSON.stringify(cur||{}));for(const k in add||{}){const v=add[k];
+ if(v&&typeof v==="object"){o[k]=o[k]&&typeof o[k]==="object"?o[k]:{};for(const s in v)if(v[s]&&o[k][s]==null)o[k][s]=v[s]}else if(v&&o[k]==null)o[k]=v}return o};
+const stype=c=>({Original:"原曲",Cover:"翻唱"})[c.songType]||c.songType||"";
+const catSug=c=>c.source==="vocadb"?"ボカロ":"";
+// ---- 快取（獨立 DB）----
+let cdb;const cdbp=()=>cdb?Promise.resolve(cdb):new Promise((ok,no)=>{const r=indexedDB.open("SetlistLookupCache",1);r.onupgradeneeded=()=>r.result.createObjectStore("c",{keyPath:"k"});r.onsuccess=()=>ok(cdb=r.result);r.onerror=()=>no(r.error)});
+const cget=async k=>{try{const d=await cdbp();return await new Promise(ok=>{const q=d.transaction("c").objectStore("c").get(k);q.onsuccess=()=>ok(q.result);q.onerror=()=>ok(null)})}catch(e){return null}};
+const cput=async v=>{try{const d=await cdbp();await new Promise(ok=>{const t=d.transaction("c","readwrite");t.objectStore("c").put(v);t.oncomplete=ok;t.onerror=ok})}catch(e){}};
+// ---- 原生呼叫 / single-flight / revision ----
+const pend=new Map(),infl=new Map(),revs={};let rid=0;
+window.__lookupDone=(id,j)=>{const f=pend.get(id);if(f){pend.delete(id);f(j)}};
+const native=(src,q,qkey,sid)=>new Promise(res=>{const id="r"+(++rid);
+ const to=setTimeout(()=>{pend.delete(id);res({ok:false,code:"timeout",retryAfterMs:3e5})},60000);
+ pend.set(id,j=>{clearTimeout(to);try{res(JSON.parse(j))}catch(e){res({ok:false,code:"parse_error",retryAfterMs:3e5})}});
+ LookupBridge.lookup(src,q,qkey,sid,id)});
+let S={sid:null,rows:{},on:{}},D={},UN=[],ORIG=null,TOK=null;
+const buildQ=src=>{const t=S.song,a=S.artist;
+ if(src==="musicbrainz")return`recording:"${t.replace(/"/g,"")}"`+(a?` AND artist:"${a.replace(/"/g,"")}"`:"");
+ return src==="itunes"&&a?t+" "+a:t};
+async function runSrc(src,force){
+ const R=S.rows[src]={st:"loading"},sid=S.sid;draw();
+ const qkey=n1(S.song)+"|"+n1(S.artist),k=src+"|"+qkey,e=(await cget(k))||{k,src},now=Date.now();
+ if(e.ok){R.cands=e.ok.cands;R.at=e.ok.at}
+ if(!force){
+  if(e.err&&now-e.err.at<TTL.err){R.st=e.err.code==="429"?"rate_limited":"error";R.err=e.err;draw();return}
+  if(e.ok&&now-e.ok.at<(e.ok.cands.length?TTL.ok:TTL.empty)){R.st="cached";draw();return}
+ }
+ if(e.ok){R.st="refreshing";draw()}
+ const rev=revs[k]=(revs[k]||0)+1;
+ let p=infl.get(k);if(!p){p=native(src,buildQ(src),qkey,sid).finally(()=>infl.delete(k));infl.set(k,p)}
+ const j=await p,t=Date.now();
+ if(j.ok){let c;try{c=MAP[src](j.data).map(x=>({...x,source:src,id:src+":"+x.itemId,aliases:x.aliases||[],work:x.work||"",album:x.album||""}))}catch(x){j.ok=false;j.code="parse_error";j.retryAfterMs=3e5}
+  if(j.ok){e.ok={cands:c,at:t};delete e.err}}
+ if(!j.ok)e.err={code:j.code,at:t,retryAfterMs:j.retryAfterMs||3e5};   // 錯誤不清掉上次成功資料
+ if(rev===revs[k])await cput(e);                                        // 舊請求不得覆蓋新快取
+ if(sid!==S.sid)return;                                                 // 舊 session 不更新 UI
+ if(e.err&&(!e.ok||e.err.at>=e.ok.at)){R.st=e.err.code==="429"?"rate_limited":"error";R.err=e.err;R.cands=e.ok&&e.ok.cands}
+ else{R.cands=e.ok.cands;R.at=e.ok.at;R.st=e.ok.cands.length?"success":"empty"}
+ draw()}
+// ---- UI ----
+const snap=()=>({v:Object.fromEntries(FN.map(k=>[k,($("#fm").elements[k]||{}).value??""])),d:JSON.stringify(D)});
+const restore=s=>{FN.forEach(k=>{const el=$("#fm").elements[k];if(el)el.value=s.v[k]});D=JSON.parse(s.d);drawP()};
+const allC=()=>SRC.filter(s=>S.on[s]).flatMap(s=>(S.rows[s]&&S.rows[s].cands)||[]);
+function meta(c){const f=$("#fm").elements,g=grade(f.artist.value,c),te=n2(c.title)===n2(S.song),vd=vers(c.title)!==vers(S.song);
+ const conf=te&&g==="none"?"高":te&&g!=="high"?"中":"低";
+ return{g,te,vd,conf,done:[c.year,c.album,c.work,c.durationMs,c.aliases.length,c.artist].filter(Boolean).length,gk:n2(c.title)+"|"+n2(c.artist)+"|"+vers(c.title)}}
+function fieldRows(c){const f=$("#fm").elements,cur=n1,rows=[],mt=meta(c);
+ const empty=k=>!String(f[k].value||"").trim();
+ if(c.year)rows.push(["year",c.year+"（"+c.dateType+"）",empty("year"),""]);
+ else if(c.dateText)rows.push(["",`日期 ${c.dateText}（${c.dateType}，不當作發行年）`,false,""]);
+ if(c.album)rows.push(["album",c.album,empty("album"),""]);
+ if(c.work)rows.push(["work",c.work,empty("work"),""]);
+ const al=c.aliases.filter(a=>!f.aliases.value.split(/[,，、]/).some(x=>cur(x)===cur(a)));if(al.length)rows.push(["aliases","新增："+al.join(", "),true,""]);
+ if(c.durationMs)rows.push(["dur",fmtDur(c.durationMs),empty("dur"),""]);
+ if(stype(c))rows.push(["stype",stype(c),empty("stype"),""]);
+ const cj=safe(f.extids.value);if(JSON.stringify(mergeIds(cj,c.extIds))!==JSON.stringify(cj))rows.push(["extids",JSON.stringify(c.extIds),true,""]);
+ if(c.artist&&n1(c.artist)!==n1(f.artist.value))rows.push(["artist",c.artist,empty("artist")&&mt.te&&mt.g!=="high",""]);
+ if(catSug(c))rows.push(["category",catSug(c)+"（僅建議）",false,""]);
+ return rows}
+function draw(){
+ $("#lksw").innerHTML="本次查詢："+SRC.map(s=>`<label><input type="checkbox" data-lkt="${s}"${S.on[s]?" checked":""}>${NM[s]}</label> `).join("");
+ $("#lks").innerHTML=SRC.filter(s=>S.on[s]).map(s=>{const R=S.rows[s]||{st:"idle"},n=(R.cands||[]).length;let t="—";
+  if(R.st==="loading")t="查詢中…";else if(R.st==="success")t=`✓ ${n} 筆`;else if(R.st==="empty")t="0 筆";
+  else if(R.st==="cached")t=`快取於 ${ago(R.at)}前 · ${n} 筆`;else if(R.st==="refreshing")t=`快取於 ${ago(R.at)}前 · 更新中…`;
+  else if(R.st==="rate_limited")t=`429 限流，${mins(R.err.at+R.err.retryAfterMs-Date.now())} 分鐘後可重試`;
+  else if(R.st==="error")t=`⚠ ${R.err.code}（${mins(R.err.at+R.err.retryAfterMs-Date.now())} 分鐘內不自動重查）${n?" · 顯示上次結果 "+n+" 筆":""}`;
+  return`<div class="m">${NM[s]}：${t} <button class="ic" data-lkr="${s}">僅重查</button></div>`}).join("");
+ const list=allC().map(c=>({c,m:meta(c)})),rk={none:0,low:1,unknown:1,high:2};
+ list.sort((a,b)=>rk[a.m.g]-rk[b.m.g]||b.m.te-a.m.te||b.m.done-a.m.done||(b.c.year||0)-(a.c.year||0));
+ const cnt={};list.forEach(x=>cnt[x.m.gk]=(cnt[x.m.gk]||0)+1);
+ const seen=new Set(),out=[];for(const x of list){if(seen.has(x.m.gk))continue;seen.add(x.m.gk);list.filter(y=>y.m.gk===x.m.gk).forEach(y=>out.push(y))}
+ $("#lkl").innerHTML=out.length?out.map(({c,m})=>{
+  const w=[m.g==="high"?"⚠ 歌手明顯不同":m.g==="low"?"歌手相近（feat./CV 等）":m.g==="unknown"?"候選無歌手資訊":"",m.vd?"版本不同":"",cnt[m.gk]>1?"可能重複":""].filter(Boolean).join(" · ");
+  const open=S.open===c.id;
+  return`<div class="card" data-lkc="${esc(c.id)}" style="display:block"><b>${esc(c.title)}</b><div class="m">${NM[c.source]} · ${esc(c.artist||"—")} · ${esc(c.album||"—")} · ${c.year?c.year+"（"+esc(c.dateType)+"）":esc(c.dateText||"—")}</div>
+  <div class="m">比對信度：${m.conf} · 來源屬性：${esc(c.dateType)}${w?" · "+w:""}</div>
+  ${open?`<div id="lkd" data-id="${esc(c.id)}">${fieldRows(c).map(([k,v,d])=>k?`<label class="m" style="display:block"><input type="checkbox" data-fld="${k}"${d?" checked":""}> ${LB[k]}：${esc(v)}</label>`:`<div class="m">${esc(v)}</div>`).join("")}
+  <button class="p" data-lka style="width:100%;margin-top:6px">套用勾選的欄位</button></div>`:""}</div>`}).join(""):'<p class="m">尚無候選</p>';
+ drawP()}
+function drawP(){const e=Object.entries(D);
+ $("#lkp").innerHTML=`<b class="m">草稿預覽（按編輯視窗的「儲存」才寫入曲庫）</b>`+(e.length?e.map(([k,d])=>`<div class="m">${LB[k]||k}：${esc(d.value)} ← ${d.origin==="manual"?"手動修改":esc(d.sourceCandidateId)}</div>`).join(""):'<div class="m">尚未套用</div>')+
+ `<div class="row"><button data-lku${UN.length?"":" disabled"}>↩ 復原（${UN.length}）</button><button data-lkz>⟲ 重置</button></div>`}
+function applyC(c){
+ const f=$("#fm").elements,chk=$$("#lkd input[data-fld]:checked").map(x=>x.dataset.fld);if(!chk.length)return;
+ if(chk.includes("year")&&c.year){const o=allC().filter(x=>x.id!==c.id&&x.year&&x.source!=="bangumi").map(x=>x.year);
+  if(o.length&&c.year>Math.min(...o)&&!confirm("此年份晚於其他來源，確定？"))return}
+ UN.push(snap());if(UN.length>UNDO)UN.shift();
+ const sn={title:c.title,artist:c.artist,album:c.album,year:c.year,dateType:c.dateType};
+ const set=(k,v)=>{f[k].value=v;D[k]={value:v,origin:"candidate",sourceCandidateId:c.id,sourceSnapshot:sn}};
+ for(const k of chk){
+  if(k==="year"){set("year",c.year);f.ytype.value=c.dateType||""}
+  else if(k==="aliases"){const cur=f.aliases.value.split(/[,，、]/).map(x=>x.trim()).filter(Boolean);set("aliases",[...cur,...c.aliases.filter(a=>a&&!cur.some(x=>n1(x)===n1(a)))].join(", "))}
+  else if(k==="extids")set("extids",JSON.stringify(mergeIds(safe(f.extids.value),c.extIds)));
+  else if(k==="stype")set("stype",stype(c));else if(k==="dur")set("dur",fmtDur(c.durationMs));
+  else if(k==="category"){if(CATS.includes(catSug(c)))set("category",catSug(c))}
+  else set(k,c[k])}
+ draw()}
+function start(){S.sid&&LookupBridge.cancel(S.sid);
+ S={sid:"s"+Date.now()+Math.random().toString(36).slice(2,6),song:$("#lkq1").value.trim(),artist:$("#lkq2").value.trim(),rows:{},on:S.on,open:null};
+ if(!S.song)return;draw();SRC.filter(s=>S.on[s]).forEach(s=>runSrc(s,false))}
+function openLookup(){
+ if(!window.LookupBridge){alert("補資料需在 App 內使用（需要原生連線）");return}
+ const f=$("#fm").elements,tok=f._t&&f._t.value;
+ if(tok!==TOK){TOK=tok;D={};UN=[];ORIG=snap()}
+ $("#lkq1").value=f.song.value.trim();$("#lkq2").value=f.artist.value.trim();
+ S={on:Object.fromEntries(SRC.map(s=>[s,gsrc().includes(s)]))};
+ $("#lk").showModal();start();
+ if(!$("#fm").__lk){$("#fm").__lk=1;$("#fm").addEventListener("input",e=>{const n=e.target.name;if(D[n]){D[n].origin="manual";drawP()}})}}
+$("#lk").addEventListener("close",()=>{window.LookupBridge&&S.sid&&LookupBridge.cancel(S.sid);S.sid=null});
+document.addEventListener("click",e=>{const t=e.target,d=n=>t.closest("["+n+"]");
+ if(t.id==="lkb")return openLookup();
+ if(d("data-lkx"))return $("#lk").close();
+ if(d("data-lkq"))return start();
+ if(d("data-lke")){const x=s=>String(s||"").replace(/[\(\[（【][^\)\]）】]*[\)\]）】]/g,"").replace(/\s*(feat|ft)\b\.?.*$/i,"").trim();
+  $("#lkq1").value=x($("#lkq1").value)||$("#lkq1").value;$("#lkq2").value=x($("#lkq2").value);return start()}
+ if(d("data-lkr"))return runSrc(d("data-lkr").dataset.lkr,true);
+ if(d("data-lka"))return applyC(allC().find(c=>c.id===$("#lkd").dataset.id));
+ if(d("data-lku")){if(UN.length)restore(UN.pop());return}
+ if(d("data-lkz")){if(ORIG){restore(ORIG);D={};UN=[];drawP()}return}
+ if(t.dataset&&t.dataset.lkt){const s=t.dataset.lkt;S.on[s]=t.checked;if(t.checked&&!S.rows[s]&&S.sid)runSrc(s,false);return draw()}
+ if(t.dataset&&t.dataset.lks){const a=$$("#lksrc input:checked").map(x=>x.dataset.lks);localStorage.setItem("lk_src",JSON.stringify(a));return}
+ const c=d("data-lkc");if(c&&!t.closest("#lkd")&&!t.closest("button")){S.open=S.open===c.dataset.lkc?null:c.dataset.lkc;draw()}});
+$("#lksrc").innerHTML=SRC.map(s=>`<label><input type="checkbox" data-lks="${s}"${gsrc().includes(s)?" checked":""}>${NM[s]}</label> `).join("");
+window.__lk={n2,grade,MAP,mergeIds,vers};
+})();
+</script>
+</body></html>
